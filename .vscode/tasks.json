@@ -42,6 +42,7 @@
                 "-g",
                 "${workspaceFolder}/main.cpp",
                 "${workspaceFolder}/tgaimage.cpp",
+                "${workspaceFolder}/model.cpp",
                 "-o",
                 "${workspaceFolder}/main"
             ],

@@ -17,6 +17,8 @@ https://github.com/ssloy/tinyrenderer/wiki
 const TGAColor white = TGAColor(255, 255,  255, 255);
 const TGAColor red   = TGAColor(255, 0,    0,   255);
 const TGAColor green = TGAColor(0,   255,  0,   255);
+const TGAColor blue  = TGAColor(0,   0,    255, 255);
+
 Model *model = NULL;
 const int width = 800;
 const int height = 800;
@@ -55,13 +57,12 @@ void line(Vec2i p0, Vec2i p1, TGAImage &image, TGAColor color) {
         steep = true;
     }
     if (p0.x>p1.x) {
-        std::swap(p0.x, p1.x);
-        std::swap(p0.y, p1.y);
+        std::swap(p0, p1);
     }
 
     for (int x=p0.x; x<=p1.x; x++) {
         float t = (x-p0.x)/(float)(p1.x-p0.x);
-        int y = p0.y*(1.-t) + p1.y*t;
+        int y = p0.y*(1.-t) + p1.y*t + .5;
         if (steep) {
             image.set(y, x, color);
         } else {
@@ -93,9 +94,39 @@ void triangle(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage &image, TGAColor color) {
     }
 }
 
+void rasterize(Vec2i p0, Vec2i p1, TGAImage &image, TGAColor color, int ybuffer[]) {
+    if (p0.x>p1.x) {
+        std::swap(p0, p1);
+    }
+    for (int x=p0.x; x<=p1.x; x++) {
+        float t = (x-p0.x)/(float)(p1.x-p0.x);
+        int y = p0.y*(1.-t) + p1.y*t;
+        if (ybuffer[x]<y) {
+            ybuffer[x] = y;
+            image.set(x, 0, color);
+        }
+    }
+}
+
 
 
 int main(int argc, char** argv) {
+     { // just dumping the 2d scene (yay we have enough dimensions!)
+        TGAImage scene(width, height, TGAImage::RGB);
+
+        // scene "2d mesh"
+        line(Vec2i(20, 34),   Vec2i(744, 400), scene, red);
+        line(Vec2i(120, 434), Vec2i(444, 400), scene, green);
+        line(Vec2i(330, 463), Vec2i(594, 200), scene, blue);
+
+        // screen line
+        line(Vec2i(10, 10), Vec2i(790, 10), scene, white);
+
+        scene.flip_vertically(); // i want to have the origin at the left bottom corner of the image
+        scene.write_tga_file("scene.tga");
+    }
+
+    {
 	    // Get the current executable path
     char buffer[1024];
     ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer)-1);
@@ -116,45 +147,27 @@ int main(int argc, char** argv) {
     
     std::cout << "Creating image..." << std::endl;
     
-    if (2==argc) {
-        model = new Model(argv[1]);
-    } else {
-        model = new Model("obj/african_head.obj");
-    }
-
-    TGAImage image(width, height, TGAImage::RGB);
-    // for (int i=0; i<model->nfaces(); i++) {
-    //     std::vector<int> face = model->face(i);
-    //     Vec2i screen_coords[3];
-    //     for (int j=0; j<3; j++) {
-    //         Vec3f world_coords = model->vert(face[j]);
-    //         screen_coords[j] = Vec2i((world_coords.x+1.)*width/2., (world_coords.y+1.)*height/2.);
-    //     }
-    //     TGAColor random_Color = TGAColor(rand()%255, rand()%255, rand()%255, 255);
-    //     triangle(screen_coords[0], screen_coords[1], screen_coords[2], image, random_Color);
+    // if (2==argc) {
+    //     model = new Model(argv[1]);
+    // } else {
+    //     model = new Model("obj/african_head.obj");
     // }
-for (int i=0; i<model->nfaces(); i++) {
-        std::vector<int> face = model->face(i);
-        Vec2i screen_coords[3];
-        Vec3f world_coords[3];
-        for (int j=0; j<3; j++) {
-            Vec3f v = model->vert(face[j]);
-            screen_coords[j] = Vec2i((v.x+1.)*width/2., (v.y+1.)*height/2.);
-            world_coords[j]  = v;
-        }
-        Vec3f n = (world_coords[2]-world_coords[0])^(world_coords[1]-world_coords[0]);
-        n.normalize();
-        float intensity = n*light_dir;
-        if (intensity>0) {
-            triangle(screen_coords[0], screen_coords[1], screen_coords[2], image, TGAColor(intensity*255, intensity*255, intensity*255, 255));
-        }
-    }
 
-    image.flip_vertically();
-    image.write_tga_file("framebuffer.tga");
+    TGAImage render(width, height, TGAImage::RGB);
+    int ybuffer[width];
+    for (int i=0;i<width; i++) {
+        ybuffer[i] = std::numeric_limits<int>::min();
+    }
+    rasterize(Vec2i(20, 34), Vec2i(744, 400), render, red, ybuffer);
+    rasterize(Vec2i(120, 434), Vec2i(444, 400), render, green, ybuffer);
+    rasterize(Vec2i(330, 463), Vec2i(594, 200), render, blue, ybuffer);
+
+
+    render.flip_vertically();
+    render.write_tga_file("framebuffer.tga");
 
     std::cout << "Attempting to write output.tga..." << std::endl;
-    bool success = image.write_tga_file("output.tga");
+    bool success = render.write_tga_file("output.tga");
     
     if (success) {
         std::cout << "Successfully wrote output.tga" << std::endl;
@@ -163,5 +176,6 @@ for (int i=0; i<model->nfaces(); i++) {
     }
 
     // delete [] zbuffer;
+    }
     return 0;
 }

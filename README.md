@@ -9,4 +9,6 @@ clang++ -std=c++11 main.cpp tgaimage.cpp -o main
 
 ./main
 
+
+
 (not finished)
